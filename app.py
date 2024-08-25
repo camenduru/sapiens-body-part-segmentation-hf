@@ -132,8 +132,17 @@ def create_legend_image(labels_to_ids: dict[str, int], filename="legend.png"):
 
 # ----------------- MODEL ----------------- #
 
+URL = "https://huggingface.co/facebook/sapiens/resolve/main/sapiens_lite_host/torchscript/seg/checkpoints/sapiens_0.3b/sapiens_0.3b_goliath_best_goliath_mIoU_7673_epoch_194_torchscript.pt2?download=true"
 CHECKPOINTS_DIR = os.path.join(ASSETS_DIR, "checkpoints")
 model_path = os.path.join(CHECKPOINTS_DIR, "sapiens_0.3b_goliath_best_goliath_mIoU_7673_epoch_194_torchscript.pt2")
+
+if not os.path.exists(model_path):
+    os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
+    import requests
+
+    response = requests.get(URL)
+    with open(model_path, "wb") as file:
+        file.write(response.content)
 
 model = torch.jit.load(model_path)
 model.eval()
@@ -201,8 +210,7 @@ with gr.Blocks(css=CUSTOM_CSS, theme=gr.themes.Monochrome(radius_size=sizes.radi
         with gr.Column():
             result_image = gr.Image(label="Segmentation Result", format="png")
             run_button = gr.Button("Run")
-            
-        
+
             gr.Image(os.path.join(ASSETS_DIR, "legend.png"), label="Legend", type="filepath")
 
     run_button.click(
