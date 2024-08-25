@@ -1,5 +1,5 @@
 ---
-title: Sapiens 0.3B: Body-part Segmentation
+title: Sapiens 0.3B - Body-part Segmentation
 emoji: 👅
 colorFrom: purple
 colorTo: blue
