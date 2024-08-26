@@ -93,25 +93,27 @@ def visualize_mask_with_overlay(img: Image.Image, mask: Image.Image, labels_to_i
 
 # ----------------- MODEL ----------------- #
 
-URL = "https://huggingface.co/facebook/sapiens/resolve/main/sapiens_lite_host/torchscript/seg/checkpoints/sapiens_0.3b/sapiens_0.3b_goliath_best_goliath_mIoU_7673_epoch_194_torchscript.pt2?download=true"
 CHECKPOINTS_DIR = os.path.join(ASSETS_DIR, "checkpoints")
-model_path = os.path.join(CHECKPOINTS_DIR, "sapiens_0.3b_goliath_best_goliath_mIoU_7673_epoch_194_torchscript.pt2")
+CHECKPOINTS = {
+    "0.3B": "sapiens_0.3b_goliath_best_goliath_mIoU_7673_epoch_194_torchscript.pt2",
+    "0.6B": "sapiens_0.6b_goliath_best_goliath_mIoU_7777_epoch_178_torchscript.pt2",
+    "1B": "sapiens_1b_goliath_best_goliath_mIoU_7994_epoch_151_torchscript.pt2",
+    "2B": "sapiens_2b_goliath_best_goliath_mIoU_8179_epoch_181_torchscript.pt2",
+}
 
-if not os.path.exists(model_path):
-    os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
-    import requests
 
-    response = requests.get(URL)
-    with open(model_path, "wb") as file:
-        file.write(response.content)
+def load_model(checkpoint_name: str):
+    checkpoint_path = os.path.join(CHECKPOINTS_DIR, CHECKPOINTS[checkpoint_name])
+    model = torch.jit.load(checkpoint_path)
+    model.eval()
+    model.to("cuda")
 
-model = torch.jit.load(model_path)
-model.eval()
-model.to("cuda")
+
+MODELS = {name: load_model(name) for name in CHECKPOINTS.keys()}
 
 
 @torch.inference_mode()
-def run_model(input_tensor, height, width):
+def run_model(model, input_tensor, height, width):
     output = model(input_tensor)
     output = torch.nn.functional.interpolate(output, size=(height, width), mode="bilinear", align_corners=False)
     _, preds = torch.max(output, 1)
@@ -129,9 +131,10 @@ transform_fn = transforms.Compose(
 
 
 @spaces.GPU
-def segment(image: Image.Image) -> Image.Image:
+def segment(image: Image.Image, model_name: str) -> Image.Image:
     input_tensor = transform_fn(image).unsqueeze(0).to("cuda")
-    preds = run_model(input_tensor, height=image.height, width=image.width)
+    model = MODELS[model_name]
+    preds = run_model(model, input_tensor, height=image.height, width=image.width)
     mask = preds.squeeze(0).cpu().numpy()
     mask_image = Image.fromarray(mask.astype("uint8"))
     blended_image = visualize_mask_with_overlay(image, mask_image, LABELS_TO_IDS, alpha=0.5)
@@ -161,6 +164,11 @@ with gr.Blocks(css=CUSTOM_CSS, theme=gr.themes.Monochrome(radius_size=sizes.radi
     with gr.Row():
         with gr.Column():
             input_image = gr.Image(label="Input Image", type="pil", format="png")
+            model_name = gr.Dropdown(
+                label="Model Version",
+                choices=list(CHECKPOINTS.keys()),
+                value="0.3B",
+            )
 
             example_model = gr.Examples(
                 inputs=input_image,
@@ -178,7 +186,7 @@ with gr.Blocks(css=CUSTOM_CSS, theme=gr.themes.Monochrome(radius_size=sizes.radi
 
     run_button.click(
         fn=segment,
-        inputs=[input_image],
+        inputs=[input_image, model_name],
         outputs=[result_image],
     )
 

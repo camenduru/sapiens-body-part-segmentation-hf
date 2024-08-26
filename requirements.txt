@@ -4,5 +4,4 @@ torch
 torchvision
 matplotlib
 pillow
-requests
 spaces
