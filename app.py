@@ -12,9 +12,6 @@ from torchvision import transforms
 
 # ----------------- ENV ----------------- #
 
-if torch.cuda.get_device_properties(0).major >= 8:
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
 
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 
@@ -107,13 +104,12 @@ if not os.path.exists(model_path):
 
 model = torch.jit.load(model_path)
 model.eval()
+model.to("cuda")
 
 
 @spaces.GPU
 @torch.inference_mode()
 def run_model(input_tensor, height, width):
-    model.to("cuda")  # set the device after acquiring it with ZERO
-    input_tensor = input_tensor.to("cuda")
     output = model(input_tensor)
     output = torch.nn.functional.interpolate(output, size=(height, width), mode="bilinear", align_corners=False)
     _, preds = torch.max(output, 1)
@@ -131,7 +127,7 @@ transform_fn = transforms.Compose(
 
 
 def segment(image: Image.Image) -> Image.Image:
-    input_tensor = transform_fn(image).unsqueeze(0)
+    input_tensor = transform_fn(image).unsqueeze(0).to("cuda")
     preds = run_model(input_tensor, height=image.height, width=image.width)
     mask = preds.squeeze(0).cpu().numpy()
     mask_image = Image.fromarray(mask.astype("uint8"))
