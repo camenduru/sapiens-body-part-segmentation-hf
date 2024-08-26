@@ -107,12 +107,12 @@ if not os.path.exists(model_path):
 
 model = torch.jit.load(model_path)
 model.eval()
-model.to("cuda")
 
 
 @spaces.GPU
 @torch.inference_mode()
 def run_model(input_tensor, height, width):
+    model.to("cuda")  # set the device after acquiring it with ZERO
     output = model(input_tensor)
     output = torch.nn.functional.interpolate(output, size=(height, width), mode="bilinear", align_corners=False)
     _, preds = torch.max(output, 1)
