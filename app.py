@@ -112,10 +112,9 @@ model.to("cuda")
 
 @torch.inference_mode()
 def run_model(input_tensor, height, width):
-    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-        output = model(input_tensor)
-        output = torch.nn.functional.interpolate(output, size=(height, width), mode="bilinear", align_corners=False)
-        _, preds = torch.max(output, 1)
+    output = model(input_tensor)
+    output = torch.nn.functional.interpolate(output, size=(height, width), mode="bilinear", align_corners=False)
+    _, preds = torch.max(output, 1)
     return preds
 
 
@@ -131,7 +130,7 @@ transform_fn = transforms.Compose(
 
 @spaces.GPU
 def segment(image: Image.Image) -> Image.Image:
-    input_tensor = transform_fn(image).unsqueeze(0)
+    input_tensor = transform_fn(image).unsqueeze(0).to("cuda")
     preds = run_model(input_tensor, height=image.height, width=image.width)
     mask = preds.squeeze(0).cpu().numpy()
     mask_image = Image.fromarray(mask.astype("uint8"))
