@@ -114,6 +114,7 @@ model.to("cuda")
 @torch.inference_mode()
 @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
 def run_model(input_tensor, height, width):
+    input_tensor = input_tensor.to(device="cuda", dtype=torch.bfloat16)  # explicit cast to bfloat16
     output = model(input_tensor)
     output = torch.nn.functional.interpolate(output, size=(height, width), mode="bilinear", align_corners=False)
     _, preds = torch.max(output, 1)
