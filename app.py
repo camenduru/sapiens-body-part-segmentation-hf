@@ -107,6 +107,7 @@ def load_model(checkpoint_name: str):
     model = torch.jit.load(checkpoint_path)
     model.eval()
     model.to("cuda")
+    return model
 
 
 MODELS = {name: load_model(name) for name in CHECKPOINTS.keys()}
