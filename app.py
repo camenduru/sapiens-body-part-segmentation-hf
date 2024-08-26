@@ -4,14 +4,17 @@ import os
 import gradio as gr
 import matplotlib.colors as mcolors
 import numpy as np
+import spaces
 import torch
 from gradio.themes.utils import sizes
-from matplotlib import pyplot as plt
-from matplotlib.patches import Patch
 from PIL import Image
 from torchvision import transforms
 
-# ----------------- HELPER FUNCTIONS ----------------- #
+# ----------------- ENV ----------------- #
+
+if torch.cuda.get_device_properties(0).major >= 8:
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 
@@ -45,6 +48,9 @@ LABELS_TO_IDS = {
     "Upper Teeth": 26,
     "Tongue": 27,
 }
+
+
+# ----------------- HELPER FUNCTIONS ----------------- #
 
 
 def get_palette(num_cls):
@@ -85,51 +91,6 @@ def visualize_mask_with_overlay(img: Image.Image, mask: Image.Image, labels_to_i
     return blended
 
 
-def create_legend_image(labels_to_ids: dict[str, int], filename="legend.png"):
-    num_cls = len(labels_to_ids)
-    palette = get_palette(num_cls)
-    colormap = create_colormap(palette)
-
-    fig, ax = plt.subplots(figsize=(4, 6), facecolor="white")
-
-    ax.axis("off")
-
-    legend_elements = [
-        Patch(facecolor=colormap(i), edgecolor="black", label=label)
-        for label, i in sorted(labels_to_ids.items(), key=lambda x: x[1])
-    ]
-
-    plt.title("Legend", fontsize=16, fontweight="bold", pad=20)
-
-    legend = ax.legend(
-        handles=legend_elements,
-        loc="center",
-        bbox_to_anchor=(0.5, 0.5),
-        ncol=2,
-        frameon=True,
-        fancybox=True,
-        shadow=True,
-        fontsize=10,
-        title_fontsize=12,
-        borderpad=1,
-        labelspacing=1.2,
-        handletextpad=0.5,
-        handlelength=1.5,
-        columnspacing=1.5,
-    )
-
-    legend.get_frame().set_facecolor("#FAFAFA")
-    legend.get_frame().set_edgecolor("gray")
-
-    # Adjust layout and save
-    plt.tight_layout()
-    plt.savefig(filename, dpi=300, bbox_inches="tight")
-    plt.close()
-
-
-# create_legend_image(LABELS_TO_IDS, filename=os.path.join(ASSETS_DIR, "legend.png"))
-
-
 # ----------------- MODEL ----------------- #
 
 URL = "https://huggingface.co/facebook/sapiens/resolve/main/sapiens_lite_host/torchscript/seg/checkpoints/sapiens_0.3b/sapiens_0.3b_goliath_best_goliath_mIoU_7673_epoch_194_torchscript.pt2?download=true"
@@ -146,9 +107,12 @@ if not os.path.exists(model_path):
 
 model = torch.jit.load(model_path)
 model.eval()
+model.to("cuda")
 
 
-@torch.no_grad()
+@spaces.GPU
+@torch.inference_mode()
+@torch.autocast(device_type="cuda", dtype=torch.bfloat16)
 def run_model(input_tensor, height, width):
     output = model(input_tensor)
     output = torch.nn.functional.interpolate(output, size=(height, width), mode="bilinear", align_corners=False)
