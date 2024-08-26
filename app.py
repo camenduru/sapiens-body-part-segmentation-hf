@@ -113,6 +113,7 @@ model.eval()
 @torch.inference_mode()
 def run_model(input_tensor, height, width):
     model.to("cuda")  # set the device after acquiring it with ZERO
+    input_tensor = input_tensor.to("cuda")
     output = model(input_tensor)
     output = torch.nn.functional.interpolate(output, size=(height, width), mode="bilinear", align_corners=False)
     _, preds = torch.max(output, 1)
